@@ -1,16 +1,19 @@
 import { BookOpen } from 'lucide-react';
-import type { CFGDefinition } from '../types';
+import type { CFGDefinition, CFGDerivationStep } from '../types';
 
 interface CFGSectionProps {
   cfg: CFGDefinition;
+  derivationSteps: CFGDerivationStep[];
+  currentStepIndex: number;
+  isTeal: boolean;
 }
 
-export default function CFGSection({ cfg }: CFGSectionProps) {
+export default function CFGSection({ cfg, derivationSteps, currentStepIndex, isTeal }: CFGSectionProps) {
   return (
     <div className="space-y-8">
       <div className="flex items-center gap-3">
-        <div className="p-2 bg-teal-900/40 rounded-lg">
-          <BookOpen size={20} className="text-teal-400" />
+        <div className={`p-2 rounded-lg ${isTeal ? 'bg-teal-900/40' : 'bg-blue-900/40'}`}>
+          <BookOpen size={20} className={isTeal ? 'text-teal-400' : 'text-blue-400'} />
         </div>
         <div>
           <h3 className="text-lg font-bold text-slate-100">Context-Free Grammar</h3>
@@ -28,7 +31,7 @@ export default function CFGSection({ cfg }: CFGSectionProps) {
             <div key={i} className="flex gap-4">
               <span className="text-sm font-black text-slate-500 tabular-nums">{i + 1}.</span>
               <p className="text-sm text-slate-400">
-                <span className="font-mono font-bold text-teal-400 mr-2">{prod.nonTerminal}</span>
+                <span className={`font-mono font-bold mr-2 ${isTeal ? 'text-teal-400' : 'text-blue-400'}`}>{prod.nonTerminal}</span>
                 {prod.description}
               </p>
             </div>
@@ -38,26 +41,36 @@ export default function CFGSection({ cfg }: CFGSectionProps) {
 
       {/* Formal CFG Section */}
       <div className="space-y-4">
-        <p className="text-sm font-bold text-slate-200 uppercase tracking-widest border-l-2 border-teal-500 pl-3">
+        <p className={`text-sm font-bold text-slate-200 uppercase tracking-widest border-l-2 pl-3 ${isTeal ? 'border-teal-500' : 'border-blue-500'}`}>
           The CFG:
         </p>
         <div className="bg-slate-900/40 rounded-2xl border border-slate-800 p-6 space-y-4">
-          {cfg.productions.map((prod, i) => (
-            <div key={i} className="flex items-start gap-4 font-mono text-base group">
-              <span className="text-teal-400 font-black min-w-[20px]">{prod.nonTerminal}</span>
-              <span className="text-slate-600">→</span>
-              <div className="flex flex-wrap gap-2 items-center">
-                {prod.productions.map((p, j) => (
-                  <div key={j} className="flex items-center gap-2">
-                    <span className="text-slate-100">{p}</span>
-                    {j < prod.productions.length - 1 && (
-                      <span className="text-slate-600 font-normal">|</span>
-                    )}
+          {(() => {
+            const activeNT = derivationSteps[currentStepIndex]?.nonTerminal ?? null;
+            return cfg.productions.map((prod, i) => {
+              const isActive = activeNT === prod.nonTerminal;
+              const glowClass = isActive
+                ? `rounded-xl p-2 -m-2 transition-all duration-300 ${isTeal ? 'glow-border-teal' : 'glow-border-blue'}`
+                : '';
+              const ruleRow = (
+                <div key={i} className="flex items-start gap-4 font-mono text-base group">
+                  <span className={`font-black min-w-[20px] ${isTeal ? 'text-teal-400' : 'text-blue-400'}`}>{prod.nonTerminal}</span>
+                  <span className="text-slate-600">→</span>
+                  <div className="flex flex-wrap gap-2 items-center">
+                    {prod.productions.map((p, j) => (
+                      <div key={j} className="flex items-center gap-2">
+                        <span className="text-slate-100">{p}</span>
+                        {j < prod.productions.length - 1 && (
+                          <span className="text-slate-600 font-normal">|</span>
+                        )}
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-            </div>
-          ))}
+                </div>
+              );
+              return glowClass ? <div key={i} className={glowClass}>{ruleRow}</div> : ruleRow;
+            });
+          })()}
         </div>
       </div>
 

@@ -1,14 +1,17 @@
 import { useState } from 'react';
-import { ArrowLeft, GitBranch, BookOpen, Layers, Terminal, Activity, Users, HelpCircle, HelpCircle as GuideIcon } from 'lucide-react';
-import type { DFADefinition, DFAChoice } from '../types';
+import { ArrowLeft, GitBranch, BookOpen, Layers, Terminal, Activity, Users, HelpCircle, HelpCircle as GuideIcon, type LucideIcon } from 'lucide-react';
+import type { DFADefinition, DFAChoice, CFGDerivationStep } from '../types';
 import { alphaCFG, binaryCFG, alphaPDA, binaryPDA } from '../data/grammarData';
 import DFAGraph from './DFAGraph';
 import SimulationPanel from './SimulationPanel';
 import CFGSection from './CFGSection';
-import PDASection from './PDASection';
+import CFGSimulationPanel from './CFGSimulationPanel';
+import PDAGraph from './PDAGraph';
+import PDASimulationPanel from './PDASimulationPanel';
 import MembersSection from './MembersSection';
 import TutorialSection from './TutorialSection';
 import DFAUIBlurGuide from './DFAUIBlurGuide';
+// PDASection is archived in src/components/PDASection.tsx (not rendered)
 
 interface DFAPageProps {
   dfa: DFADefinition;
@@ -27,11 +30,16 @@ export default function DFAPage({ dfa, choice, onBack }: DFAPageProps) {
   } | null>(null);
   const [activeTab, setActiveTab] = useState<Tab>('dfa');
   const [showGuide, setShowGuide] = useState(false);
+  const [cfgSteps, setCfgSteps] = useState<CFGDerivationStep[]>([]);
+  const [cfgStepIndex, setCfgStepIndex] = useState(-1);
+  const [pdaCurrentState, setPdaCurrentState] = useState<string | null>(null);
+  const [pdaVisitedTransition, setPdaVisitedTransition] = useState<{ from: string; to: string; label: string } | null>(null);
+  const [pdaIsRejectedFinal, setPdaIsRejectedFinal] = useState(false);
 
   const cfg = choice === 'alpha' ? alphaCFG : binaryCFG;
   const pda = choice === 'alpha' ? alphaPDA : binaryPDA;
 
-  const tabs: { id: Tab; label: string; icon: any }[] = [
+  const tabs: { id: Tab; label: string; icon: LucideIcon }[] = [
     { id: 'dfa', label: 'DFA Logic', icon: GitBranch },
     { id: 'cfg', label: 'CFG Blueprint', icon: BookOpen },
     { id: 'pda', label: 'PDA Flowchart', icon: Layers },
@@ -236,17 +244,101 @@ export default function DFAPage({ dfa, choice, onBack }: DFAPageProps) {
           )}
 
           {activeTab === 'cfg' && (
-            <div className="max-w-4xl mx-auto w-full">
-              <div className="glass-card rounded-[3rem] p-12 shadow-2xl">
-                <CFGSection cfg={cfg} />
+            <div className="grid lg:grid-cols-12 gap-8 h-full">
+              <div className="lg:col-span-8 flex flex-col gap-8">
+                <div id="cfg-grammar-container" className="glass-card rounded-[2.5rem] p-8 relative overflow-hidden">
+                  <div className={`absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-current to-transparent opacity-50 ${accent}`} />
+                  <div className="flex items-center justify-between mb-8">
+                    <div className="flex items-center gap-4">
+                      <div className={`p-3 rounded-2xl ${accentBg}`}>
+                        <BookOpen size={20} className={accent} />
+                      </div>
+                      <div>
+                        <h2 className="text-sm font-black text-white uppercase tracking-[0.15em]">Grammar Derivation Engine</h2>
+                        <div className="flex items-center gap-2 mt-1">
+                          <div className={`w-2 h-2 rounded-full animate-pulse ${isTeal ? 'bg-teal-500' : 'bg-blue-500'}`} />
+                          <span className="text-[10px] font-mono font-bold text-slate-500 uppercase">Live_Production_Stream</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className={`px-2.5 py-1 rounded-lg border text-[10px] font-black uppercase tracking-[0.1em] ${
+                      isTeal ? 'bg-teal-500/10 border-teal-500/30 text-teal-400' : 'bg-blue-500/10 border-blue-500/30 text-blue-400'
+                    }`}>
+                      LEFTMOST MODE
+                    </div>
+                  </div>
+
+                  <div className="w-full bg-slate-950/40 rounded-[2rem] border border-white/5 relative overflow-hidden shadow-2xl">
+                    <CFGSection cfg={cfg} derivationSteps={cfgSteps} currentStepIndex={cfgStepIndex} isTeal={isTeal} />
+                  </div>
+                </div>
+              </div>
+
+              <div className="lg:col-span-4">
+                <div className="glass-card rounded-[2.5rem] p-8 h-full sticky top-[6.5rem]">
+                  <CFGSimulationPanel
+                    cfg={cfg}
+                    onStepChange={(_step, index, allSteps) => { setCfgStepIndex(index); setCfgSteps(allSteps); }}
+                    onResult={() => {}}
+                    isTeal={isTeal}
+                  />
+                </div>
               </div>
             </div>
           )}
 
           {activeTab === 'pda' && (
-            <div className="max-w-6xl mx-auto w-full">
-              <div className="glass-card rounded-[3rem] p-12 shadow-2xl">
-                <PDASection pda={pda} />
+            <div className="grid lg:grid-cols-12 gap-8 h-full">
+              <div className="lg:col-span-8 flex flex-col gap-8">
+                <div id="pda-graph-container" className="glass-card rounded-[2.5rem] p-8 relative overflow-hidden h-[640px] flex flex-col">
+                  <div className={`absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-current to-transparent opacity-50 ${accent}`} />
+                  <div className="flex items-center justify-between mb-8">
+                    <div className="flex items-center gap-4">
+                      <div className={`p-3 rounded-2xl ${accentBg}`}>
+                        <Layers size={20} className={accent} />
+                      </div>
+                      <div>
+                        <h2 className="text-sm font-black text-white uppercase tracking-[0.15em]">Stack Logic Processor</h2>
+                        <div className="flex items-center gap-2 mt-1">
+                          <div className={`w-2 h-2 rounded-full animate-pulse ${isTeal ? 'bg-teal-500' : 'bg-blue-500'}`} />
+                          <span className="text-[10px] font-mono font-bold text-slate-500 uppercase">Live_State_Flow</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className={`px-2.5 py-1 rounded-lg border text-[10px] font-black uppercase tracking-[0.1em] ${
+                      isTeal ? 'bg-teal-500/10 border-teal-500/30 text-teal-400' : 'bg-blue-500/10 border-blue-500/30 text-blue-400'
+                    }`}>
+                      PUSHDOWN ACTIVE
+                    </div>
+                  </div>
+
+                  <div className="flex-1 w-full bg-slate-950/40 rounded-[2rem] border border-white/5 relative overflow-hidden group shadow-2xl">
+                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(0,0,0,0)_0%,rgba(0,0,0,0.4)_100%)] pointer-events-none" />
+                    <PDAGraph
+                      pda={pda}
+                      currentState={pdaCurrentState}
+                      visitedTransition={pdaVisitedTransition}
+                      isTeal={isTeal}
+                      isRejectedFinal={pdaIsRejectedFinal}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="lg:col-span-4">
+                <div className="glass-card rounded-[2.5rem] p-8 h-full sticky top-[6.5rem]">
+                  <PDASimulationPanel
+                    pda={pda}
+                    onStateChange={(state, transition) => {
+                      setPdaCurrentState(state);
+                      setPdaVisitedTransition(transition);
+                    }}
+                    onResult={(_accepted, _rejected, isRejectedFinal) => {
+                      setPdaIsRejectedFinal(isRejectedFinal);
+                    }}
+                    isTeal={isTeal}
+                  />
+                </div>
               </div>
             </div>
           )}

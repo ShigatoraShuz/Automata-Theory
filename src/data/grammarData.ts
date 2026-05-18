@@ -3,6 +3,8 @@ import type { CFGDefinition, PDADefinition } from '../types';
 export const alphaCFG: CFGDefinition = {
   startSymbol: 'S',
   description: 'Context-Free Grammar for (aba + bab)(a+b)*(bab)(a+b)*(a+b+ab+ba)(a+b+aa)*',
+  alphabet: ['a', 'b'],
+  examples: ['ababababa', 'babababaaa', 'ababbababa', 'babbababa', 'ababaabab'],
   productions: [
     {
       nonTerminal: 'S',
@@ -36,8 +38,8 @@ export const alphaCFG: CFGDefinition = {
     },
     {
       nonTerminal: 'F',
-      productions: ['a', 'b', 'aa'],
-      description: 'Suffix 2: a, b, or aa',
+      productions: ['a', 'b', 'aa', 'Λ'],
+      description: 'Suffix 2: a, b, aa, or empty',
     },
   ],
 };
@@ -45,6 +47,8 @@ export const alphaCFG: CFGDefinition = {
 export const binaryCFG: CFGDefinition = {
   startSymbol: 'S',
   description: 'Context-Free Grammar for ((101+111)+(1+0+11))(1+0+01)(111+000+101)(1+0)*',
+  alphabet: ['0', '1'],
+  examples: ['11100111', '10101000', '11001111', '11011110'],
   productions: [
     {
       nonTerminal: 'S',
@@ -78,7 +82,9 @@ export const alphaPDA: PDADefinition = {
   id: 'alpha-pda-detailed',
   name: 'Alphabetic PDA Blueprint',
   description: 'High-Fidelity Flowchart for (aba+bab)(a+b)*(bab)(a+b)*(a+b+ab+ba)(a+b+aa)*',
-  viewBox: '0 0 1600 800',
+  viewBox: '0 0 1700 850',
+  alphabet: ['a', 'b'],
+  examples: ['ababababa', 'babababaaa', 'ababbababa', 'babbababa'],
   states: [
     { id: 'start', type: 'start', label: 'START', x: 50, y: 400 },
     { id: 'r1', type: 'read', label: 'READ₁', x: 180, y: 300 },
@@ -92,7 +98,10 @@ export const alphaPDA: PDADefinition = {
     { id: 'mid_b2', type: 'read', label: 'READ_b', x: 1100, y: 550 },
     { id: 'loop2', type: 'read', label: 'LOOP₂', x: 1250, y: 650 },
     { id: 'suffix_a', type: 'read', label: 'READ_a', x: 1400, y: 750 },
-    { id: 'accept', type: 'accept', label: 'ACCEPT', x: 1550, y: 400 },
+    { id: 'suffix_b', type: 'read', label: 'READ_b', x: 1400, y: 550 },
+    { id: 'suffix_ab_b', type: 'read', label: 'READ_b', x: 1500, y: 750 },
+    { id: 'suffix_ba_a', type: 'read', label: 'READ_a', x: 1500, y: 550 },
+    { id: 'accept', type: 'accept', label: 'ACCEPT', x: 1600, y: 650 },
     { id: 'reject', type: 'reject', label: 'REJECT', x: 800, y: 100 },
   ],
   transitions: [
@@ -107,10 +116,22 @@ export const alphaPDA: PDADefinition = {
     { from: 'loop1', to: 'mid_b', label: 'b' },
     { from: 'mid_b', to: 'mid_a', label: 'a' },
     { from: 'mid_a', to: 'mid_b2', label: 'b' },
-    { from: 'mid_b2', to: 'loop2', label: 'a,b' },
+    { from: 'mid_b2', to: 'loop2', label: '' },
     { from: 'loop2', to: 'loop2', label: 'a,b', curve: 'self-loop-top' },
-    { from: 'loop2', to: 'suffix_a', label: 'a,b' },
+    // Suffix handling: (a+b+ab+ba)
+    // Single char suffix: a or b
+    { from: 'loop2', to: 'suffix_a', label: 'a' },
+    { from: 'loop2', to: 'suffix_b', label: 'b' },
+    // Two char suffix: ab (a then b)
+    { from: 'suffix_a', to: 'suffix_ab_b', label: 'b' },
+    // Two char suffix: ba (b then a)
+    { from: 'suffix_b', to: 'suffix_ba_a', label: 'a' },
+    // Accept transitions
     { from: 'suffix_a', to: 'accept', label: 'Δ' },
+    { from: 'suffix_b', to: 'accept', label: 'Δ' },
+    { from: 'suffix_ab_b', to: 'accept', label: 'Δ' },
+    { from: 'suffix_ba_a', to: 'accept', label: 'Δ' },
+    // Reject transitions
     { from: 'r1', to: 'reject', label: 'Δ' },
     { from: 'mid_b', to: 'reject', label: 'Δ' },
   ],
@@ -120,44 +141,70 @@ export const binaryPDA: PDADefinition = {
   id: 'binary-pda-detailed',
   name: 'Binary PDA Blueprint',
   description: 'Formal Flowchart for ((101+111)+(1+0+11))(1+0+01)(111+000+101)(1+0)*',
-  viewBox: '0 0 1600 600',
+  viewBox: '0 0 1800 900',
+  alphabet: ['0', '1'],
+  examples: ['11100111', '10101000', '11001111', '11011110'],
   states: [
-    { id: 'start', type: 'start', label: 'START', x: 50, y: 300 },
-    { id: 'r1', type: 'read', label: 'READ₁', x: 180, y: 300 },
-    { id: 'r2', type: 'read', label: 'READ₂', x: 300, y: 200 },
-    { id: 'r3', type: 'read', label: 'READ₃', x: 300, y: 400 },
-    { id: 'r4', type: 'read', label: 'READ₄', x: 450, y: 150 },
-    { id: 'r5', type: 'read', label: 'READ₅', x: 450, y: 250 },
-    { id: 'r6', type: 'read', label: 'READ₆', x: 450, y: 350 },
-    { id: 'r7', type: 'read', label: 'READ₇', x: 600, y: 300 },
-    { id: 'r8', type: 'read', label: 'READ₈', x: 750, y: 300 },
-    { id: 'r9', type: 'read', label: 'READ₉', x: 900, y: 200 },
-    { id: 'r10', type: 'read', label: 'READ₁₀', x: 900, y: 400 },
-    { id: 'r11', type: 'read', label: 'READ₁₁', x: 1050, y: 150 },
-    { id: 'r12', type: 'read', label: 'READ₁₂', x: 1050, y: 250 },
-    { id: 'r13', type: 'read', label: 'READ₁₃', x: 1200, y: 300 },
-    { id: 'loop', type: 'read', label: 'LOOP', x: 1350, y: 300 },
-    { id: 'accept', type: 'accept', label: 'ACCEPT', x: 1500, y: 300 },
+    // Start
+    { id: 'q0', type: 'start', label: 'START', x: 80, y: 450 },
+    // Group 1: (101+111)+(1+0+11)
+    { id: 'q1', type: 'read', label: 'G1✓', x: 500, y: 450 },
+    { id: 'q2', type: 'read', label: 'READ₁', x: 200, y: 250 },
+    { id: 'q3', type: 'read', label: 'READ₀', x: 200, y: 450 },
+    { id: 'q4', type: 'read', label: 'READ₁', x: 350, y: 450 },
+    { id: 'q5', type: 'read', label: 'READ₁', x: 200, y: 650 },
+    { id: 'q6', type: 'read', label: 'READ₁', x: 350, y: 650 },
+    // Group 2: (1+0+01)
+    { id: 'q7', type: 'read', label: 'G2_START', x: 600, y: 450 },
+    { id: 'q8', type: 'read', label: 'G2✓', x: 800, y: 450 },
+    { id: 'q9', type: 'read', label: 'READ₁', x: 700, y: 600 },
+    // Group 3: (111+000+101)
+    { id: 'q10', type: 'read', label: 'G3_START', x: 900, y: 450 },
+    { id: 'q11', type: 'read', label: 'READ₁', x: 1000, y: 250 },
+    { id: 'q12', type: 'read', label: 'READ₁', x: 1150, y: 250 },
+    { id: 'q13', type: 'read', label: 'READ₁', x: 1000, y: 450 },
+    { id: 'q14', type: 'read', label: 'READ₀', x: 1150, y: 450 },
+    { id: 'q15', type: 'read', label: 'READ₀', x: 1000, y: 650 },
+    { id: 'q16', type: 'read', label: 'READ₀', x: 1150, y: 650 },
+    { id: 'q17', type: 'read', label: 'G3✓', x: 1300, y: 450 },
+    // Final loop and accept
+    { id: 'q18', type: 'accept', label: 'ACCEPT', x: 1600, y: 450 },
   ],
   transitions: [
-    { from: 'start', to: 'r1', label: '' },
-    { from: 'r1', to: 'r2', label: '1' },
-    { from: 'r1', to: 'r3', label: '0' },
-    { from: 'r2', to: 'r4', label: '0' },
-    { from: 'r2', to: 'r5', label: '1' },
-    { from: 'r3', to: 'r6', label: '1' },
-    { from: 'r4', to: 'r7', label: '1' },
-    { from: 'r5', to: 'r7', label: '1' },
-    { from: 'r6', to: 'r7', label: '1' },
-    { from: 'r7', to: 'r8', label: '0,1' },
-    { from: 'r8', to: 'r9', label: '1' },
-    { from: 'r8', to: 'r10', label: '0' },
-    { from: 'r9', to: 'r11', label: '1' },
-    { from: 'r9', to: 'r12', label: '0' },
-    { from: 'r11', to: 'r13', label: '1' },
-    { from: 'r12', to: 'r13', label: '1' },
-    { from: 'r13', to: 'loop', label: '0,1' },
-    { from: 'loop', to: 'loop', label: '0,1', curve: 'self-loop-top' },
-    { from: 'loop', to: 'accept', label: 'Δ' },
+    // Group 1: (101+111)+(1+0+11)
+    { from: 'q0', to: 'q1', label: '0', curve: 'straight', labelOffset: { x: 0, y: -20 } },
+    { from: 'q0', to: 'q1', label: '1', curve: 'curve-up', labelOffset: { x: 0, y: -40 } },
+    { from: 'q0', to: 'q2', label: '1', curve: 'straight', labelOffset: { x: 0, y: -15 } },
+    { from: 'q0', to: 'q3', label: '1', curve: 'straight', labelOffset: { x: 0, y: -15 } },
+    { from: 'q0', to: 'q5', label: '1', curve: 'straight', labelOffset: { x: 0, y: 15 } },
+    { from: 'q2', to: 'q1', label: '1', curve: 'straight', labelOffset: { x: 0, y: -15 } },
+    { from: 'q3', to: 'q4', label: '0', curve: 'straight', labelOffset: { x: 0, y: -15 } },
+    { from: 'q4', to: 'q1', label: '1', curve: 'straight', labelOffset: { x: 0, y: -15 } },
+    { from: 'q5', to: 'q6', label: '1', curve: 'straight', labelOffset: { x: 0, y: 15 } },
+    { from: 'q6', to: 'q1', label: '1', curve: 'straight', labelOffset: { x: 0, y: 15 } },
+    // Group 1 → Group 2 (ε-transition)
+    { from: 'q1', to: 'q7', label: '', curve: 'straight', labelOffset: { x: 0, y: -15 } },
+    // Group 2: (1+0+01)
+    { from: 'q7', to: 'q8', label: '0', curve: 'straight', labelOffset: { x: 0, y: -20 } },
+    { from: 'q7', to: 'q9', label: '0', curve: 'straight', labelOffset: { x: 0, y: 15 } },
+    { from: 'q7', to: 'q8', label: '1', curve: 'curve-up', labelOffset: { x: 0, y: -40 } },
+    { from: 'q9', to: 'q8', label: '1', curve: 'straight', labelOffset: { x: 0, y: 15 } },
+    // Group 2 → Group 3 (ε-transition)
+    { from: 'q8', to: 'q10', label: '', curve: 'straight', labelOffset: { x: 0, y: -15 } },
+    // Group 3: (111+000+101)
+    { from: 'q10', to: 'q15', label: '0', curve: 'straight', labelOffset: { x: 0, y: 15 } },
+    { from: 'q10', to: 'q11', label: '1', curve: 'straight', labelOffset: { x: 0, y: -15 } },
+    { from: 'q10', to: 'q13', label: '1', curve: 'straight', labelOffset: { x: 0, y: -15 } },
+    { from: 'q11', to: 'q12', label: '1', curve: 'straight', labelOffset: { x: 0, y: -15 } },
+    { from: 'q12', to: 'q17', label: '1', curve: 'straight', labelOffset: { x: 0, y: -15 } },
+    { from: 'q13', to: 'q14', label: '0', curve: 'straight', labelOffset: { x: 0, y: -15 } },
+    { from: 'q14', to: 'q17', label: '1', curve: 'straight', labelOffset: { x: 0, y: -15 } },
+    { from: 'q15', to: 'q16', label: '0', curve: 'straight', labelOffset: { x: 0, y: 15 } },
+    { from: 'q16', to: 'q17', label: '0', curve: 'straight', labelOffset: { x: 0, y: 15 } },
+    // Group 3 → Accept (ε-transition)
+    { from: 'q17', to: 'q18', label: '', curve: 'straight', labelOffset: { x: 0, y: -15 } },
+    // Final loop: (1+0)*
+    { from: 'q18', to: 'q18', label: '0', curve: 'self-loop-bottom', labelOffset: { x: -20, y: 20 } },
+    { from: 'q18', to: 'q18', label: '1', curve: 'self-loop-bottom', labelOffset: { x: 20, y: 20 } },
   ],
 };

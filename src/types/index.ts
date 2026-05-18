@@ -40,6 +40,8 @@ export interface CFGDefinition {
   startSymbol: string;
   productions: CFGProduction[];
   description: string;
+  alphabet: string[];
+  examples?: string[];
 }
 
 export interface PDAState {
@@ -65,6 +67,8 @@ export interface PDADefinition {
   viewBox: string;
   states: PDAState[];
   transitions: PDATransition[];
+  alphabet: string[];
+  examples?: string[];
 }
 
 export type DFAChoice = 'alpha' | 'binary' | null;
@@ -75,4 +79,19 @@ export interface SimulationStep {
   char: string | null;
   transitionFrom?: string;
   transitionTo?: string;
+}
+
+export interface CFGDerivationStep {
+  nonTerminal: string;       // e.g., 'B'
+  production: string;        // e.g., 'aB', 'bB', or 'Λ'
+  sententialBefore: string;  // e.g., 'abaBCDEF'
+  sententialAfter: string;   // e.g., 'abaaBCDEF' or 'abaCDEF'
+}
+
+export interface PDASimulationStep {
+  fromState: string;         // Source state ID
+  toState: string;           // Target state ID
+  label: string;             // Transition label (raw, will be parsed)
+  inputPosition: number;     // How many characters consumed so far
+  char?: string;             // Character consumed (undefined for epsilon and delta)
 }
