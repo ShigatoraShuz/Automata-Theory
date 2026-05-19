@@ -12,7 +12,7 @@ export interface DFATransition {
   from: string;
   to: string;
   label: string;
-  curve?: 'straight' | 'curve-up' | 'curve-down' | 'self-loop-top' | 'self-loop-bottom' | 'self-loop-left';
+  curve?: 'straight' | 'curve-up' | 'curve-down' | 'self-loop-top' | 'self-loop-bottom' | 'self-loop-left' | 'self-loop-right';
   labelOffset?: { x: number; y: number };
 }
 

@@ -13,7 +13,7 @@ function getArrowPath(
   to: DFAState,
   curve: DFATransition['curve'],
 ): { d: string; labelX: number; labelY: number; headX: number; headY: number; headAngle: number } {
-  if (curve === 'self-loop-top' || curve === 'self-loop-bottom' || curve === 'self-loop-left') {
+  if (curve === 'self-loop-top' || curve === 'self-loop-bottom' || curve === 'self-loop-left' || curve === 'self-loop-right') {
     const r = NODE_RADIUS;
     let startAngle: number, endAngle: number;
     let loopOffX = 0, loopOffY = 0;
@@ -24,9 +24,12 @@ function getArrowPath(
     } else if (curve === 'self-loop-bottom') {
       startAngle = 30; endAngle = 150;
       loopOffY = 55;
-    } else {
+    } else if (curve === 'self-loop-left') {
       startAngle = -60; endAngle = 60;
       loopOffX = -55;
+    } else {
+      startAngle = 120; endAngle = 240;
+      loopOffX = 55;
     }
 
     const toRad = (deg: number) => (deg * Math.PI) / 180;
@@ -118,6 +121,17 @@ function ArrowHead({ x, y, angle, color, isActive }: ArrowHeadProps) {
   );
 }
 
+function transitionMatches(
+  transition: DFATransition,
+  visitedTransition: DFAGraphProps['visitedTransition'],
+): boolean {
+  if (!visitedTransition) return false;
+  if (visitedTransition.from !== transition.from || visitedTransition.to !== transition.to) return false;
+
+  const labels = transition.label.split(',').map((label) => label.trim());
+  return labels.includes(visitedTransition.label);
+}
+
 export default function DFAGraph({
   dfa,
   currentState,
@@ -193,13 +207,9 @@ export default function DFAGraph({
         const toState = stateMap[t.to];
         if (!fromState || !toState) return null;
         const path = getArrowPath(fromState, toState, t.curve);
-        const isActive = !!(
-          visitedTransition &&
-          visitedTransition.from === t.from &&
-          visitedTransition.to === t.to &&
-          visitedTransition.label === t.label
-        );
+        const isActive = transitionMatches(t, visitedTransition);
         const color = isActive ? '#06b6d4' : '#334155';
+        const labelWidth = Math.max(28, t.label.length * 9 + 14);
 
         return (
           <g key={`${t.from}-${t.to}-${t.label}-${i}`}>
@@ -244,9 +254,9 @@ export default function DFAGraph({
             {/* Label with technical backplate */}
             <g transform={`translate(${path.labelX + (t.labelOffset?.x ?? 0)}, ${path.labelY + (t.labelOffset?.y ?? 0)})`}>
               <rect
-                x="-14"
+                x={-labelWidth / 2}
                 y="-10"
-                width="28"
+                width={labelWidth}
                 height="20"
                 rx="4"
                 fill="#020617"

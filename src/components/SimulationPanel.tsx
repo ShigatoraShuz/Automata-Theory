@@ -9,6 +9,16 @@ interface SimulationPanelProps {
   isTeal: boolean;
 }
 
+type BatchDFAResult = {
+  id: number;
+  input: string;
+  accepted: boolean;
+  finalState: string;
+};
+
+const INPUT_COUNT = 10;
+const EMPTY_INPUTS = Array.from({ length: INPUT_COUNT }, () => '');
+
 function buildSteps(dfa: DFADefinition, input: string): SimulationStep[] {
   const steps: SimulationStep[] = [];
   let current = dfa.startState;
@@ -33,16 +43,37 @@ function buildSteps(dfa: DFADefinition, input: string): SimulationStep[] {
   return steps;
 }
 
+function simulateDFA(dfa: DFADefinition, input: string): BatchDFAResult {
+  const steps = buildSteps(dfa, input);
+  const finalState = steps[steps.length - 1]?.stateId ?? 'DEAD';
+
+  return {
+    id: 0,
+    input,
+    finalState,
+    accepted: dfa.acceptStates.includes(finalState),
+  };
+}
+
 export default function SimulationPanel({ dfa, onStateChange, onResult, isTeal }: SimulationPanelProps) {
+  const [inputValues, setInputValues] = useState<string[]>(EMPTY_INPUTS);
   const [inputStr, setInputStr] = useState('');
   const [steps, setSteps] = useState<SimulationStep[]>([]);
   const [stepIndex, setStepIndex] = useState(-1);
   const [isPlaying, setIsPlaying] = useState(false);
   const [speed, setSpeed] = useState(700);
   const [hasRun, setHasRun] = useState(false);
+  const [batchResults, setBatchResults] = useState<BatchDFAResult[]>([]);
+  const [activeResultId, setActiveResultId] = useState<number | null>(null);
+  const [isBatchReplaying, setIsBatchReplaying] = useState(false);
+  const [batchReplayIndex, setBatchReplayIndex] = useState<number | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const batchReplayTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const currentStep = steps[stepIndex] ?? null;
+  const inputErrors = inputValues.map(value => value.trim().split('').some((c) => !dfa.alphabet.includes(c)));
+  const hasInvalid = inputErrors.some(Boolean);
+  const hasRunnableInput = inputValues.some(value => value.trim().length > 0);
   const isAccepted = hasRun && stepIndex === steps.length - 1 && currentStep
     ? dfa.acceptStates.includes(currentStep.stateId)
     : null;
@@ -77,7 +108,12 @@ export default function SimulationPanel({ dfa, onStateChange, onResult, isTeal }
             clearInterval(intervalRef.current!);
             return prev;
           }
-          return prev + 1;
+          const next = prev + 1;
+          if (next >= steps.length - 1) {
+            setIsPlaying(false);
+            clearInterval(intervalRef.current!);
+          }
+          return next;
         });
       }, speed);
     }
@@ -86,18 +122,84 @@ export default function SimulationPanel({ dfa, onStateChange, onResult, isTeal }
     };
   }, [isPlaying, steps, speed]);
 
-  function handleRun() {
-    if (!inputStr.trim()) return;
-    const invalid = inputStr.split('').find((c) => !dfa.alphabet.includes(c));
-    if (invalid) return;
-    const newSteps = buildSteps(dfa, inputStr);
+  useEffect(() => {
+    if (
+      !isBatchReplaying ||
+      batchReplayIndex === null ||
+      isPlaying ||
+      steps.length === 0 ||
+      stepIndex !== steps.length - 1
+    ) {
+      return;
+    }
+
+    const nextBatchIndex = batchReplayIndex + 1;
+    if (nextBatchIndex >= batchResults.length) {
+      setIsBatchReplaying(false);
+      setBatchReplayIndex(null);
+      return;
+    }
+
+    batchReplayTimeoutRef.current = setTimeout(() => {
+      const nextResult = batchResults[nextBatchIndex];
+      const nextSteps = buildSteps(dfa, nextResult.input);
+      setBatchReplayIndex(nextBatchIndex);
+      setInputStr(nextResult.input);
+      setSteps(nextSteps);
+      setStepIndex(0);
+      setHasRun(true);
+      setIsPlaying(true);
+      setActiveResultId(nextResult.id);
+    }, Math.max(450, speed));
+
+    return () => {
+      if (batchReplayTimeoutRef.current) {
+        clearTimeout(batchReplayTimeoutRef.current);
+      }
+    };
+  }, [isBatchReplaying, batchReplayIndex, isPlaying, stepIndex, steps.length, batchResults, speed, dfa]);
+
+  function cancelBatchReplay() {
+    if (batchReplayTimeoutRef.current) {
+      clearTimeout(batchReplayTimeoutRef.current);
+    }
+    setIsBatchReplaying(false);
+    setBatchReplayIndex(null);
+  }
+
+  function loadSimulation(input: string, resultId: number | null = null, autoplay = false) {
+    const newSteps = buildSteps(dfa, input);
+    setInputStr(input);
     setSteps(newSteps);
     setStepIndex(0);
     setHasRun(true);
-    setIsPlaying(false);
+    setIsPlaying(autoplay);
+    setActiveResultId(resultId);
+  }
+
+  function handleBatchRun() {
+    if (!hasRunnableInput || hasInvalid) return;
+    cancelBatchReplay();
+
+    const results = inputValues
+      .map((value, index) => ({ value: value.trim(), index }))
+      .filter(({ value }) => value.length > 0)
+      .map(({ value, index }) => ({
+        ...simulateDFA(dfa, value),
+        id: index,
+      }));
+
+    setBatchResults(results);
+
+    if (results.length > 0) {
+      setIsBatchReplaying(true);
+      setBatchReplayIndex(0);
+      loadSimulation(results[0].input, results[0].id, true);
+    }
   }
 
   function handlePlay() {
+    cancelBatchReplay();
     if (stepIndex >= steps.length - 1) {
       setStepIndex(0);
     }
@@ -105,23 +207,57 @@ export default function SimulationPanel({ dfa, onStateChange, onResult, isTeal }
   }
 
   function handleReset() {
+    cancelBatchReplay();
     setSteps([]);
     setStepIndex(-1);
     setIsPlaying(false);
     setHasRun(false);
+    setActiveResultId(null);
     onStateChange(null, null);
     onResult(null, false);
   }
 
+  function handleClearAll() {
+    setInputValues([...EMPTY_INPUTS]);
+    setBatchResults([]);
+    setInputStr('');
+    handleReset();
+  }
+
+  function handleInputChange(index: number, value: string) {
+    cancelBatchReplay();
+    setInputValues((current) => {
+      const next = [...current];
+      next[index] = value;
+      return next;
+    });
+    setBatchResults([]);
+    setHasRun(false);
+    setActiveResultId(null);
+  }
+
+  function handleExample(example: string) {
+    cancelBatchReplay();
+    const targetIndex = inputValues.findIndex(value => value.trim().length === 0);
+    const index = targetIndex === -1 ? 0 : targetIndex;
+    const nextInputs = [...inputValues];
+    nextInputs[index] = example;
+    const result = { ...simulateDFA(dfa, example), id: index };
+
+    setInputValues(nextInputs);
+    setBatchResults([result]);
+    loadSimulation(example, index);
+  }
+
   function handleStepForward() {
+    cancelBatchReplay();
     if (stepIndex < steps.length - 1) setStepIndex((p) => p + 1);
   }
 
   function handleStepBack() {
+    cancelBatchReplay();
     if (stepIndex > 0) setStepIndex((p) => p - 1);
   }
-
-  const hasInvalid = inputStr.split('').some((c) => !dfa.alphabet.includes(c));
 
   return (
     <div id="simulation-panel" className="space-y-6">
@@ -129,7 +265,7 @@ export default function SimulationPanel({ dfa, onStateChange, onResult, isTeal }
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">
-            Input Sequence
+            Batch Input Sequences
           </label>
           <div className="flex gap-1">
             {dfa.alphabet.map(a => (
@@ -139,48 +275,54 @@ export default function SimulationPanel({ dfa, onStateChange, onResult, isTeal }
             ))}
           </div>
         </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          {inputValues.map((value, index) => {
+            const isInvalid = inputErrors[index];
+            return (
+              <div key={index} className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[10px] font-black text-slate-600">
+                  {String(index + 1).padStart(2, '0')}
+                </span>
+                <input
+                  type="text"
+                  value={value}
+                  onChange={(e) => handleInputChange(index, e.target.value)}
+                  placeholder="Input string"
+                  className={`w-full bg-slate-900/50 border rounded-xl pl-10 pr-3 py-2.5 text-slate-100 placeholder-slate-600 font-mono text-xs focus:outline-none transition-all ${
+                    isInvalid
+                      ? 'border-red-500/50 focus:border-red-500 ring-2 ring-red-500/10'
+                      : `border-slate-800 ${isTeal ? 'focus:border-teal-500/50 focus:ring-2 focus:ring-teal-500/10' : 'focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/10'}`
+                  }`}
+                />
+              </div>
+            );
+          })}
+        </div>
+
         <div className="flex gap-2">
-          <div className="relative flex-1">
-            <input
-              type="text"
-              value={inputStr}
-              onChange={(e) => {
-                setInputStr(e.target.value);
-                setHasRun(false);
-              }}
-              placeholder="Type input string..."
-              className={`w-full bg-slate-900/50 border rounded-xl px-4 py-3.5 text-slate-100 placeholder-slate-600 font-mono text-sm focus:outline-none transition-all ${
-                hasInvalid
-                  ? 'border-red-500/50 focus:border-red-500 ring-4 ring-red-500/10'
-                  : `border-slate-800 ${isTeal ? 'focus:border-teal-500/50 focus:ring-4 focus:ring-teal-500/10' : 'focus:border-blue-500/50 focus:ring-4 focus:ring-blue-500/10'}`
-              }`}
-            />
-            {inputStr && (
-              <button 
-                onClick={() => {
-                  setInputStr('');
-                  handleReset();
-                }}
-                className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-slate-500 hover:text-slate-300 transition-colors"
-              >
-                <RotateCcw size={14} />
-              </button>
-            )}
-          </div>
           <button
-            onClick={handleRun}
-            disabled={!inputStr || hasInvalid}
-            className={`px-6 disabled:bg-slate-800 disabled:text-slate-600 text-white font-bold rounded-xl transition-all shadow-lg active:scale-95 flex items-center gap-2 group ${
+            onClick={handleBatchRun}
+            disabled={!hasRunnableInput || hasInvalid}
+            className={`flex-1 px-4 py-3 disabled:bg-slate-800 disabled:text-slate-600 text-white font-bold rounded-xl transition-all shadow-lg active:scale-95 flex items-center justify-center gap-2 group ${
               isTeal ? 'bg-teal-600 hover:bg-teal-500 shadow-teal-900/20' : 'bg-blue-600 hover:bg-blue-500 shadow-blue-900/20'
             }`}
           >
-            <Zap size={16} className={!inputStr || hasInvalid ? '' : 'group-hover:animate-pulse'} />
-            <span className="hidden sm:inline">Load</span>
+            <Zap size={16} className={!hasRunnableInput || hasInvalid ? '' : 'group-hover:animate-pulse'} />
+            Run Batch
+          </button>
+          <button
+            onClick={handleClearAll}
+            className="px-4 py-3 bg-slate-800/50 hover:bg-slate-700/50 rounded-xl transition-all border border-slate-700/50 text-slate-300"
+            title="Clear all inputs"
+          >
+            <RotateCcw size={18} />
           </button>
         </div>
+
         {hasInvalid && (
           <p className="text-red-400 text-[10px] font-semibold animate-shake">
-            Error: Invalid characters detected.
+            Error: Invalid characters detected in one or more inputs.
           </p>
         )}
 
@@ -192,20 +334,10 @@ export default function SimulationPanel({ dfa, onStateChange, onResult, isTeal }
               {dfa.examples.map((ex, idx) => (
                 <button
                   key={idx}
-                  onClick={() => {
-                    setInputStr(ex);
-                    // Use a timeout to ensure state is updated before running
-                    setTimeout(() => {
-                       const newSteps = buildSteps(dfa, ex);
-                       setSteps(newSteps);
-                       setStepIndex(0);
-                       setHasRun(true);
-                       setIsPlaying(false);
-                    }, 0);
-                  }}
+                  onClick={() => handleExample(ex)}
                   className={`px-3 py-1.5 rounded-lg border text-[10px] font-mono font-bold transition-all hover:scale-105 active:scale-95 ${
-                    isTeal 
-                      ? 'bg-teal-500/5 border-teal-500/20 text-teal-500/80 hover:bg-teal-500/10 hover:border-teal-500/40 hover:text-teal-400' 
+                    isTeal
+                      ? 'bg-teal-500/5 border-teal-500/20 text-teal-500/80 hover:bg-teal-500/10 hover:border-teal-500/40 hover:text-teal-400'
                       : 'bg-blue-500/5 border-blue-500/20 text-blue-500/80 hover:bg-blue-500/10 hover:border-blue-500/40 hover:text-blue-400'
                   }`}
                 >
@@ -216,6 +348,49 @@ export default function SimulationPanel({ dfa, onStateChange, onResult, isTeal }
           </div>
         )}
       </div>
+
+      {batchResults.length > 0 && (
+        <div className="space-y-3 animate-fade-in">
+          <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Batch Results</p>
+          <div className="space-y-2 max-h-56 overflow-y-auto pr-1 scrollbar-hide">
+            {batchResults.map((result) => {
+              const isActive = activeResultId === result.id;
+              return (
+                <button
+                  key={`${result.id}-${result.input}`}
+                  onClick={() => {
+                    cancelBatchReplay();
+                    loadSimulation(result.input, result.id);
+                  }}
+                  className={`w-full flex items-center justify-between gap-3 rounded-xl border px-3 py-2.5 text-left transition-all ${
+                    isActive
+                      ? isTeal
+                        ? 'bg-teal-500/10 border-teal-500/40'
+                        : 'bg-blue-500/10 border-blue-500/40'
+                      : 'bg-slate-900/40 border-slate-800/50 hover:bg-slate-800/40'
+                  }`}
+                >
+                  <div className="min-w-0">
+                    <p className="font-mono text-xs font-bold text-slate-200 truncate">{result.input}</p>
+                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-600">
+                      Final state: {result.finalState}
+                    </p>
+                  </div>
+                  <span
+                    className={`shrink-0 rounded-lg border px-2 py-1 text-[9px] font-black uppercase tracking-wider ${
+                      result.accepted
+                        ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-400'
+                        : 'bg-red-500/10 border-red-500/40 text-red-400'
+                    }`}
+                  >
+                    {result.accepted ? 'Accepted' : 'Rejected'}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {hasRun && steps.length > 0 && (
         <div className="space-y-6 animate-fade-in">
@@ -245,7 +420,7 @@ export default function SimulationPanel({ dfa, onStateChange, onResult, isTeal }
                 );
               })}
               {inputStr.length === 0 && (
-                <div className="text-slate-600 text-sm italic font-mono">ε (empty)</div>
+                <div className="text-slate-600 text-sm italic font-mono">epsilon (empty)</div>
               )}
             </div>
           </div>
@@ -272,8 +447,8 @@ export default function SimulationPanel({ dfa, onStateChange, onResult, isTeal }
                   onClick={isPlaying ? () => setIsPlaying(false) : handlePlay}
                   disabled={stepIndex >= steps.length - 1 && !isPlaying}
                   className={`w-32 h-11 rounded-xl font-bold flex items-center justify-center gap-2 transition-all shadow-lg active:scale-95 ${
-                    isPlaying 
-                      ? 'bg-amber-500/10 text-amber-500 border border-amber-500/50 shadow-amber-900/20' 
+                    isPlaying
+                      ? 'bg-amber-500/10 text-amber-500 border border-amber-500/50 shadow-amber-900/20'
                       : `${isTeal ? 'bg-teal-600 text-white shadow-teal-900/20 border border-teal-500' : 'bg-blue-600 text-white shadow-blue-900/20 border border-blue-500'}`
                   }`}
                 >

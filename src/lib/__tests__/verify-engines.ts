@@ -11,10 +11,10 @@ let failed = 0;
 function test(name: string, fn: () => void) {
   try {
     fn();
-    console.log(`✓ ${name}`);
+    console.log(`PASS ${name}`);
     passed++;
   } catch (e) {
-    console.error(`✗ ${name}: ${e instanceof Error ? e.message : String(e)}`);
+    console.error(`FAIL ${name}: ${e instanceof Error ? e.message : String(e)}`);
     failed++;
   }
 }
@@ -25,66 +25,54 @@ function assertEquals(actual: unknown, expected: unknown, msg?: string) {
   }
 }
 
-function assertNotNull(value: unknown, msg?: string) {
-  if (value === null) {
-    throw new Error(msg || 'Expected non-null value');
-  }
-}
-
-function assertNull(value: unknown, msg?: string) {
-  if (value !== null) {
-    throw new Error(msg || 'Expected null value');
-  }
-}
-
 console.log('=== CFG Simulation Tests ===\n');
 
 test('alphaCFG: should derive "ababababa"', () => {
   const result = buildCFGDerivation(alphaCFG, 'ababababa');
-  assertNotNull(result);
-  assertEquals(result!.length > 0, true);
-  assertEquals(result![0].nonTerminal, 'S');
-  assertEquals(result![0].production, 'ABCDEF');
-  const lastStep = result![result!.length - 1];
+  assertEquals(result.succeeded, true);
+  assertEquals(result.steps.length > 0, true);
+  assertEquals(result.steps[0].nonTerminal, 'S');
+  assertEquals(result.steps[0].production, 'ABCDEF');
+  const lastStep = result.steps[result.steps.length - 1];
   assertEquals(lastStep.sententialAfter, 'ababababa');
 });
 
 test('alphaCFG: should derive "babababaaa"', () => {
   const result = buildCFGDerivation(alphaCFG, 'babababaaa');
-  assertNotNull(result);
+  assertEquals(result.succeeded, true);
 });
 
 test('alphaCFG: should reject "zzz"', () => {
   const result = buildCFGDerivation(alphaCFG, 'zzz');
-  assertNull(result);
+  assertEquals(result.succeeded, false);
 });
 
 test('alphaCFG: should reject empty string', () => {
   const result = buildCFGDerivation(alphaCFG, '');
-  assertNull(result);
+  assertEquals(result.succeeded, false);
 });
 
 test('binaryCFG: should derive "101000"', () => {
   const result = buildCFGDerivation(binaryCFG, '101000');
-  assertNotNull(result);
-  const lastStep = result![result!.length - 1];
+  assertEquals(result.succeeded, true);
+  const lastStep = result.steps[result.steps.length - 1];
   assertEquals(lastStep.sententialAfter, '101000');
 });
 
 test('binaryCFG: should derive "11011110"', () => {
   const result = buildCFGDerivation(binaryCFG, '11011110');
-  assertNotNull(result);
+  assertEquals(result.succeeded, true);
 });
 
 test('binaryCFG: should reject invalid input', () => {
   const result = buildCFGDerivation(binaryCFG, '11100111');
-  assertNull(result);
+  assertEquals(result.succeeded, false);
 });
 
-test('binaryCFG: should use epsilon (Λ) production', () => {
+test('binaryCFG: should use epsilon production', () => {
   const result = buildCFGDerivation(binaryCFG, '101000');
-  assertNotNull(result);
-  const hasEpsilon = result!.some(step => step.production === 'Λ');
+  assertEquals(result.succeeded, true);
+  const hasEpsilon = result.steps.some(step => step.production === 'Î›');
   assertEquals(hasEpsilon, true, 'Should have epsilon production');
 });
 
@@ -92,56 +80,56 @@ console.log('\n=== PDA Simulation Tests ===\n');
 
 test('alphaPDA: should accept "ababababa"', () => {
   const result = buildPDASteps(alphaPDA, 'ababababa');
-  assertNotNull(result);
-  assertEquals(result![0].fromState, 'start');
-  assertEquals(result![0].toState, 'r1');
-  assertEquals(result![0].label, '');
+  assertEquals(result.succeeded, true);
+  assertEquals(result.steps[0].fromState, 'start');
+  assertEquals(result.steps[0].toState, 'r1');
+  assertEquals(result.steps[0].label, '');
 });
 
 test('alphaPDA: should accept "babbababa"', () => {
   const result = buildPDASteps(alphaPDA, 'babbababa');
-  assertNotNull(result);
+  assertEquals(result.succeeded, true);
 });
 
 test('alphaPDA: should reject "zzz"', () => {
   const result = buildPDASteps(alphaPDA, 'zzz');
-  assertNull(result);
+  assertEquals(result.succeeded, false);
 });
 
 test('alphaPDA: should end with delta transition to accept', () => {
   const result = buildPDASteps(alphaPDA, 'ababababa');
-  assertNotNull(result);
-  const lastStep = result![result!.length - 1];
+  assertEquals(result.succeeded, true);
+  const lastStep = result.steps[result.steps.length - 1];
   assertEquals(lastStep.toState, 'accept');
-  assertEquals(lastStep.label, 'Δ');
+  assertEquals(lastStep.label, 'Î”');
 });
 
 test('alphaPDA: should accept longer strings', () => {
   const result = buildPDASteps(alphaPDA, 'ababbababa');
-  assertNotNull(result);
+  assertEquals(result.succeeded, true);
 });
 
 test('alphaPDA: should match character sets', () => {
   const result = buildPDASteps(alphaPDA, 'ababababa');
-  assertNotNull(result);
-  const loop1Steps = result!.filter(step => step.label === 'a,b');
+  assertEquals(result.succeeded, true);
+  const loop1Steps = result.steps.filter(step => step.label === 'a,b');
   assertEquals(loop1Steps.length > 0, true, 'Should have a,b transitions');
 });
 
 test('alphaPDA: inputPosition should never decrease', () => {
   const result = buildPDASteps(alphaPDA, 'ababababa');
-  assertNotNull(result);
-  for (let i = 1; i < result!.length; i++) {
-    assertEquals(result![i].inputPosition >= result![i-1].inputPosition, true);
+  assertEquals(result.succeeded, true);
+  for (let i = 1; i < result.steps.length; i++) {
+    assertEquals(result.steps[i].inputPosition >= result.steps[i - 1].inputPosition, true);
   }
 });
 
 test('alphaPDA: should follow valid path', () => {
   const result = buildPDASteps(alphaPDA, 'ababbababa');
-  assertNotNull(result);
-  const hasAccept = result!.some(step => step.toState === 'accept');
+  assertEquals(result.succeeded, true);
+  const hasAccept = result.steps.some(step => step.toState === 'accept');
   assertEquals(hasAccept, true, 'Should reach accept state');
-  const states = result!.map(step => step.toState);
+  const states = result.steps.map(step => step.toState);
   assertEquals(states.includes('loop1'), true, 'Should pass through loop1');
 });
 
@@ -153,5 +141,5 @@ console.log(`Total: ${passed + failed}`);
 if (failed > 0) {
   process.exit(1);
 } else {
-  console.log('\n✓ All tests passed!');
+  console.log('\nAll tests passed!');
 }
